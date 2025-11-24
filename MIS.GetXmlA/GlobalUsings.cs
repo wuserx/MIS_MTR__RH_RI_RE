@@ -1,0 +1,13 @@
+﻿global using System.ComponentModel.DataAnnotations.Schema;
+global using System.ComponentModel.DataAnnotations;
+global using Newtonsoft.Json;
+global using System.Collections.ObjectModel;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.Configuration;
+global using System.Xml.Linq;
+global using System.Linq;
+global using System.Text;
+global using System;
+global using System.IO.Compression;
+global using System.Text.RegularExpressions;
+global using Init = MIS_MTR_RH_RI_RE.GetXmlA.Core.Initialization;

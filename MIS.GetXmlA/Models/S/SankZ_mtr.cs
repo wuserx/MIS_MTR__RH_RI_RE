@@ -1,0 +1,57 @@
+﻿public class SankZ_mtr
+{
+    public SankZ_mtr() { }
+
+    public int Id { get; set; }
+
+    [StringLength(36)]
+    public string? S_CODE { get; set; }
+
+    public decimal? S_SUM { get; set; }
+
+
+    public int? S_TIP { get; set; }
+
+    public int? S_OSN { get; set; }
+
+    public string? S_COM { get; set; }
+
+
+    public  DateTime? DATE_ACT { get; set; }
+
+  
+    public string? NUM_ACT { get; set; }
+
+
+    public int? S_IST { get; set; }
+
+    [NotMapped]
+    public int? STRAF { get; set; }
+
+    public string? SL_ID { get; set; }
+
+    public string? CODE_EXP { get; set; }
+
+    //public bool? IS_ACCEPTED { get; set; }
+
+    public int? ZakId { get; set; }
+    //[ForeignKey("ZakId")]
+    //public virtual ZakSluch? Zak { get; set; }
+
+    public string? _slid { get; internal set; }
+    [NotMapped]
+    public string[]? SlIds
+    {
+        get { return _slid == null ? null : JsonConvert.DeserializeObject<string[]>(_slid); }
+        set { _slid = value == null ? null : JsonConvert.SerializeObject(value); }
+    }
+
+
+    public bool SanctionAnotherTerritory { get; set; }
+
+    [NotMapped]
+    public bool HasOther
+    {
+        get { return SanctionAnotherTerritory == true ? true : false; }
+    }
+}

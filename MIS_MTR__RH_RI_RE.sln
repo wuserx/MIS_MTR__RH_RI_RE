@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32112.339
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MIS_MTR_RH_RI_RE.GetXmlA", "MIS.GetXmlA\MIS_MTR_RH_RI_RE.GetXmlA.csproj", "{47537B31-1F9D-46BC-A289-DCAC2BB5376B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{47537B31-1F9D-46BC-A289-DCAC2BB5376B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47537B31-1F9D-46BC-A289-DCAC2BB5376B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47537B31-1F9D-46BC-A289-DCAC2BB5376B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47537B31-1F9D-46BC-A289-DCAC2BB5376B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {94C4586E-0101-4BC0-89E2-53A8A564A877}
+	EndGlobalSection
+EndGlobal
