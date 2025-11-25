@@ -32,6 +32,9 @@ public class App
         int startMonth = int.Parse(RepositorySettings.GetSection("START_MONTH_PERIOD"));
         int totalMonths = int.Parse(RepositorySettings.GetSection("COUNT_MONTH_FROM_START"));
 
+        // Список всех задач Execute
+        var executeTasks = new List<Task>();
+
         for (int i = 0; i <= totalMonths; i++)
         {
             int currentYear = startYear;
@@ -51,14 +54,17 @@ public class App
             Init.YEAR_REPORT = currentYear;
             Init.MONTH_REPORT = currentMonth;
 
-            await new App().ExecuteAsync(currentYear, currentMonth, fileNameXml);
+            executeTasks.Add(new App().ExecuteAsync(currentYear, currentMonth, fileNameXml));
         }
 
-        // Закрываем каналы — консьюмеры завершатся
+        // 🔥 Ждём, пока ВСЕ ExecuteAsync завершат запись в каналы
+        await Task.WhenAll(executeTasks);
+
+        // ✅ Только теперь — закрываем каналы
         _misChannel.Writer.Complete();
         _mtrChannel.Writer.Complete();
 
-        // Ждём завершения всех обработчиков
+        // 🔥 Ждём, пока ВСЕ консьюмеры завершат обработку
         await Task.WhenAll(consumers);
 
         //message
@@ -116,7 +122,6 @@ public class App
         if (Init.GET_FROM_MTRDB == 1 && (Init.TYPE_OUT_XML_RI == 1 || Init.TYPE_OUT_XML_RIE == 1 || Init.GET_EMPTY_FROM_MTRDB == 1))
         {
             IEnumerable<Schet_mtr>? H_schets_mtr = await new RepositoryMTR(new MtrContext()).GetSchets(YEAR, MONTH).ConfigureAwait(false);
-
 
             if (H_schets_mtr != null && H_schets_mtr.Any())
             {
