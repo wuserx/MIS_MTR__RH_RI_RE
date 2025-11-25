@@ -12,6 +12,7 @@ public class App
     private static Channel<MtrWorkItem> _mtrChannel = Channel.CreateUnbounded<MtrWorkItem>();
     // Количество одновременных обработчиков
     private static int CONSUMER_COUNT = int.TryParse(RepositorySettings.GetSection("CONSUMER_COUNT"), out var parsed) ? parsed : 4;
+    private static readonly ProcessingStats Stats = new ProcessingStats();
 
     public App()
     {
@@ -67,6 +68,9 @@ public class App
         // 🔥 Ждём, пока ВСЕ консьюмеры завершат обработку
         await Task.WhenAll(consumers);
 
+        // ✅ Вывод статистики
+        Stats.Print();
+
         //message
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"\nПрограмма выполнена успешно");
@@ -106,6 +110,8 @@ public class App
                     string packetFileName = $"{FileNameXml}{schet.YEAR_REPORT}{Initialization.PACKET_MIS_NUM_START}{schet.MONTH_REPORT}{schet.Id}";
 
                     await _misChannel.Writer.WriteAsync(new MisWorkItem(schet, packetFileName));
+
+                    Stats.SubmitMis();  // ✅ Счётчик отправленных
                 }
             }
             else if (Init.TYPE_OUT_XML_RH == 1 || Init.TYPE_OUT_XML_RHE == 1)
@@ -132,6 +138,8 @@ public class App
                     string packetFileName = $"{FileNameXml}{schet.YEAR}{Initialization.PACKET_MTR_NUM_START}{schet.MONTH}{schet.Id}";
 
                     await _mtrChannel.Writer.WriteAsync(new MtrWorkItem(schet, packetFileName));
+
+                    Stats.SubmitMtr();  // ✅ Счётчик отправленных
                 }
             }
             else if (Init.TYPE_OUT_XML_RI == 1 || Init.TYPE_OUT_XML_RIE == 1)
@@ -155,12 +163,16 @@ public class App
 
                 await Task.Run(() => CookingMis.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
 
+                Stats.SuccessMis();  // ✅ Успешно обработан
+
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" готов.");
                 Console.ResetColor();
             }
             catch (Exception ex)
             {
+                Stats.ErrorMis();  // ✅ Ошибка
+
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка при обработке MIS пакета {workItem.Schet.Id}: {ex.Message}");
                 Console.ResetColor();
@@ -226,12 +238,16 @@ public class App
 
                 await Task.Run(() => CookingMtr.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
 
+                Stats.SuccessMtr();  // ✅ Успешно обработан
+
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" готов.");
                 Console.ResetColor();
             }
             catch (Exception ex)
             {
+                Stats.ErrorMtr();  // ✅ Ошибка
+
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Ошибка при обработке MTR пакета {workItem.Schet.Id}: {ex.Message}");
                 Console.ResetColor();

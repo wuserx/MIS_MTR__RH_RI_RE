@@ -5,9 +5,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyVersion>1.0.0.56</AssemblyVersion>
+    <AssemblyVersion>2.0.0.1</AssemblyVersion>
     <NeutralLanguage>ru</NeutralLanguage>
-    <FileVersion>1.0.0.56</FileVersion>
+    <FileVersion>2.0.0.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
