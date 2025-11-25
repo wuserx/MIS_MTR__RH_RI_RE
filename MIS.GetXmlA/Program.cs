@@ -8,7 +8,7 @@ try
     
     Init.Get();
 
-    App.Run();    
+    App.RunAsync().Wait();    
 }
 catch (Exception ex)
 {

@@ -1,0 +1,1 @@
+﻿public record MtrWorkItem(Schet_mtr Schet, string FileName);

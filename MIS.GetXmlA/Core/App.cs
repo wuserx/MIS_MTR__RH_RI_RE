@@ -1,79 +1,111 @@
 ﻿using MIS_MTR_RH_RI_RE.GetXmlA.Core;
+using MIS_MTR_RH_RI_RE.GetXmlA.Models.I;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using System.Threading.Channels;
 
 
 public class App
 {
+    private static Channel<MisWorkItem> _misChannel = Channel.CreateUnbounded<MisWorkItem>();
+    private static Channel<MtrWorkItem> _mtrChannel = Channel.CreateUnbounded<MtrWorkItem>();
+    // Количество одновременных обработчиков
+    private static int CONSUMER_COUNT = int.TryParse(RepositorySettings.GetSection("CONSUMER_COUNT"), out var parsed) ? parsed : 4;
 
     public App()
     {
-        
+        //Дополнительно: Ограниченный канал (на случай большого объема)
+        //Если боитесь перегрузить память        //
+        Channel.CreateBounded<MisWorkItem>(new BoundedChannelOptions(100)
+        {
+            FullMode = BoundedChannelFullMode.Wait
+        });
     }
 
-    public static void Run()
+    public static async Task RunAsync()
     {
+        // Запускаем обработчиков (фоновые задачи)
+        var consumers = StartConsumers();
 
-        int YEAR = int.Parse(RepositorySettings.GetSection("START_YEAR_PERIOD"));
-        int MONTH = int.Parse(RepositorySettings.GetSection("START_MONTH_PERIOD"));
-        string MO_CODE = RepositorySettings.GetSection("MO_CODE");
-        int COUNT_ZAP2XML = int.Parse(RepositorySettings.GetSection("COUNT_ZAP2XML"));
-        decimal COUNT_MONTH_FROM_START = decimal.Parse(RepositorySettings.GetSection("COUNT_MONTH_FROM_START"));
-        int COUNT_MONTH = int.Parse(RepositorySettings.GetSection("COUNT_MONTH_FROM_START"));
-        int COUNT_YEAR = (int)Math.Ceiling( ((decimal)COUNT_MONTH + MONTH) / 12);
-        string FileNameXml = string.Concat("RD07_", YEAR-2000,MONTH < 10 ? "0" + MONTH.ToString() : MONTH);        
+        int startYear = int.Parse(RepositorySettings.GetSection("START_YEAR_PERIOD"));
+        int startMonth = int.Parse(RepositorySettings.GetSection("START_MONTH_PERIOD"));
+        int totalMonths = int.Parse(RepositorySettings.GetSection("COUNT_MONTH_FROM_START"));
 
-
-        for (int i = 0; i < COUNT_YEAR; i++)
+        for (int i = 0; i <= totalMonths; i++)
         {
-            for (int j = 0; j < (COUNT_MONTH + 1); j++)
+            int currentYear = startYear;
+            int currentMonth = startMonth + i;
+
+            // Коррекция года при переполнении месяцев
+            if (currentMonth > 12)
             {
-                if (MONTH + j > 12)
-                {
-                    COUNT_MONTH = Math.Abs(j - COUNT_MONTH);
-                    MONTH = 1;
+                currentYear += (currentMonth - 1) / 12;
+                currentMonth = (currentMonth - 1) % 12 + 1;
+            }
 
-                    break;
-                }
+            string fileNameXml = $"RD07_{currentYear - 2000:D2}{currentMonth:D2}";
 
-                Console.WriteLine("\n период: {0}-{1}", YEAR + i, MONTH + j < 10 ? "0" + (MONTH + j).ToString(): MONTH + j);
+            Console.WriteLine("\n период: {0}-{1:D2} {2}", currentYear, currentMonth, fileNameXml);
 
-                FileNameXml = string.Concat("RD07_", (YEAR - 2000) + i, MONTH +j < 10 ? "0" + (MONTH + j).ToString() : MONTH + j);
+            Init.YEAR_REPORT = currentYear;
+            Init.MONTH_REPORT = currentMonth;
 
-                Init.YEAR_REPORT = YEAR + i;
-
-                Init.MONTH_REPORT = MONTH + j;
-
-                //Console.WriteLine(FileNameXml);
-                new App().Execute( YEAR + i, MONTH + j, FileNameXml);                
-            }            
+            await new App().ExecuteAsync(currentYear, currentMonth, fileNameXml);
         }
+
+        // Закрываем каналы — консьюмеры завершатся
+        _misChannel.Writer.Complete();
+        _mtrChannel.Writer.Complete();
+
+        // Ждём завершения всех обработчиков
+        await Task.WhenAll(consumers);
 
         //message
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"\nПрограмма выполнена успешно");
         Console.ResetColor();
-    }  
-    
-    private void Execute(int YEAR, int MONTH, string FileNameXml)
+    }
+
+    private static Task[] StartConsumers()
     {
+        var tasks = new Task[CONSUMER_COUNT * 2]; // MIS + MTR
+
+        for (int i = 0; i < CONSUMER_COUNT; i++)
+        {
+            tasks[i] = Task.Run(() => ConsumeMisAsync());
+            tasks[i + CONSUMER_COUNT] = Task.Run(() => ConsumeMtrAsync());
+        }
+
+        return tasks;
+    }
+
+    private async Task ExecuteAsync(int YEAR, int MONTH, string FileNameXml)
+    {
+        List<Task> tasks = new List<Task>();
+
         //---MIS---
 
         //выбираем пакеты из счетов за период
         if (Init.GET_FROM_MISDB == 1 && (Init.TYPE_OUT_XML_RH == 1 || Init.TYPE_OUT_XML_RHE == 1 || Init.GET_EMPTY_FROM_MISDB == 1 || Init.GET_FROM_MISDB_IDENT == 1))
         {
-            IEnumerable<Schet>? H_schets = new RepositoryMIS(new MisContext()).GetSchets(YEAR, MONTH).Result;
+            IEnumerable<Schet>? H_schets = await new RepositoryMIS(new MisContext()).GetSchets(YEAR, MONTH).ConfigureAwait(false);
 
-            if (H_schets != null)
+            if (H_schets != null && H_schets.Any())
             {
-                Task mis = new(() => new App().DoMis(H_schets, FileNameXml));
-                mis.Start();
-                mis.Wait();
+                foreach (var schet in H_schets)
+                {
+                    if (schet.Id <= 0) continue;
+
+                    string packetFileName = $"{FileNameXml}{schet.YEAR_REPORT}{Initialization.PACKET_MIS_NUM_START}{schet.MONTH_REPORT}{schet.Id}";
+
+                    await _misChannel.Writer.WriteAsync(new MisWorkItem(schet, packetFileName));
+                }
             }
             else if (Init.TYPE_OUT_XML_RH == 1 || Init.TYPE_OUT_XML_RHE == 1)
             {
-                Console.WriteLine("\nв заданном периоде не найден(ы) счет(а) {0} из MISDB\n", Init.SCHET_NSCHET_MIS?.Count > 0 ? string.Concat("номер ", Init.SCHET_NSCHET_MIS.ToString()) : "");
+                Console.WriteLine("\nв заданном периоде не найден(ы) счет(а) {0} из MISDB\n", 
+                       Init.SCHET_NSCHET_MIS?.Count > 0 ? string.Concat("номер ", Init.SCHET_NSCHET_MIS.ToString()) : "");
             }
         }
            
@@ -83,23 +115,56 @@ public class App
         //выбираем пакеты из счетов за период
         if (Init.GET_FROM_MTRDB == 1 && (Init.TYPE_OUT_XML_RI == 1 || Init.TYPE_OUT_XML_RIE == 1 || Init.GET_EMPTY_FROM_MTRDB == 1))
         {
-            IEnumerable<Schet_mtr>? H_schets_mtr = new RepositoryMTR(new MtrContext()).GetSchets(YEAR, MONTH).Result;
+            IEnumerable<Schet_mtr>? H_schets_mtr = await new RepositoryMTR(new MtrContext()).GetSchets(YEAR, MONTH).ConfigureAwait(false);
 
 
-            if (H_schets_mtr != null)
+            if (H_schets_mtr != null && H_schets_mtr.Any())
             {
-                Task mtr = new(() => new App().DoMtr(H_schets_mtr, FileNameXml));
-                mtr.Start();
-                mtr.Wait();
+                foreach (var schet in H_schets_mtr)
+                {
+                    if (schet.Id <= 0) continue;
+
+                    string packetFileName = $"{FileNameXml}{schet.YEAR}{Initialization.PACKET_MTR_NUM_START}{schet.MONTH}{schet.Id}";
+
+                    await _mtrChannel.Writer.WriteAsync(new MtrWorkItem(schet, packetFileName));
+                }
             }
             else if (Init.TYPE_OUT_XML_RI == 1 || Init.TYPE_OUT_XML_RIE == 1)
             {
-                Console.WriteLine("\nв заданном периоде не найден(ы) счет(а) {0} из MTRDB\n", Init.SCHET_NSCHET_MTR?.Count() > 0 ? string.Concat("номер ", Init.SCHET_NSCHET_MTR) : "");
+                Console.WriteLine("\nв заданном периоде не найден(ы) счет(а) {0} из MTRDB\n", 
+                    Init.SCHET_NSCHET_MTR?.Count() > 0 ? string.Concat("номер ", Init.SCHET_NSCHET_MTR) : "");
             }
-        }                          
-    } 
+        }
 
-    private void DoMis(IEnumerable<Schet> schets, string FileNameXml)
+        if (tasks.Count > 0)
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+    }
+
+    private static async Task ConsumeMisAsync()
+    {
+        await foreach (var workItem in _misChannel.Reader.ReadAllAsync())
+        {
+            try
+            {
+                Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
+
+                await Task.Run(() => CookingMis.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
+
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" готов.");
+                Console.ResetColor();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Ошибка при обработке MIS пакета {workItem.Schet.Id}: {ex.Message}");
+                Console.ResetColor();
+            }
+        }
+    }
+
+
+    private async Task DoMisAsync(IEnumerable<Schet> schets, string FileNameXml)
     {
         int schets_count = schets.Count();
         if (schets_count <= 0)
@@ -112,40 +177,65 @@ public class App
         }
 
         //массив потоков
-        Task[] tasks = new Task[schets.Count()];
-        int task_counter = 0;
+        var tasks = new List<Task>();
+        int index = 0;
 
         // перебираем пакеты
-        foreach (var (schet, index) in schets.Select((v, i) => (v, i)))
+        foreach (var schet in schets)
         {
-            if (schet.Id <= 0)
-                break;
+            if (schet.Id <= 0) continue;
 
-            //запускаем новый поток
-            tasks[task_counter] = new Task(() =>
+            int captureIndex = ++index;
+            string packetFileName = string.Concat(FileNameXml, schet.YEAR_REPORT + Initialization.PACKET_MIS_NUM_START, schet.MONTH_REPORT, schet.Id);
+
+
+            var task = Task.Run(async () =>
             {
-                Console.WriteLine($"{1 + index} MIS Пакет \"{schet.FILENAME}\" " +
-                                    $"из {schets?.Count()} добавлен в поток. ожидайте завершения...");
+                Console.WriteLine($"{captureIndex} MIS Пакет \"{schet.FILENAME}\" " +
+                                  $"из {schets_count} добавлен в поток. Ожидайте завершения...");
 
-                CookingMis.Run(schet, string.Concat(FileNameXml, schet.YEAR_REPORT + Initialization.PACKET_MIS_NUM_START, schet.MONTH_REPORT, schet.Id));
+                await Task.Run(() => CookingMis.Run(schet, packetFileName)).ConfigureAwait(false);
 
-                //message
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($" MIS Пакет \"{schet.FILENAME}\" готов. осталось {--schets_count}");
+                Console.WriteLine($" MIS Пакет \"{schet.FILENAME}\" готов. Осталось {Interlocked.Decrement(ref schets_count)}");
                 Console.ResetColor();
             });
-            tasks[task_counter].Start();
+
+            tasks.Add(task);
 
             if (Init.THREAD_ONE)
-                tasks[task_counter].Wait();
-            task_counter++;
+                await task.ConfigureAwait(false);
         }
 
-        if(!Init.THREAD_ONE)
-            Task.WaitAll(tasks);   
+        if (!Init.THREAD_ONE)
+            await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private void DoMtr(IEnumerable<Schet_mtr> schets, string FileNameXml)
+    private static async Task ConsumeMtrAsync()
+    {
+        await foreach (var workItem in _mtrChannel.Reader.ReadAllAsync())
+        {
+            try
+            {
+                Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
+
+                await Task.Run(() => CookingMtr.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
+
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" готов.");
+                Console.ResetColor();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Ошибка при обработке MTR пакета {workItem.Schet.Id}: {ex.Message}");
+                Console.ResetColor();
+            }
+        }
+    }
+
+
+    private async Task DoMtrAsync(IEnumerable<Schet_mtr> schets, string FileNameXml)
     {
         int schets_count = schets.Count();
         if (schets_count <= 0)
@@ -157,38 +247,35 @@ public class App
             return;
         }
 
-        //массив потоков
-        Task[] tasks = new Task[schets.Count()];
-        int task_counter = 0;
+        var tasks = new List<Task>();
+        int index = 0;
 
-        // перебираем пакеты
-        foreach (var (schet, index) in schets.Select((v, i) => (v, i)))
+        foreach (var schet in schets)
         {
-            if (schet.Id <= 0)
-                break;
+            if (schet.Id <= 0) continue;
 
-            //запускаем новый поток
-            tasks[task_counter] = new Task(() =>
+            int captureIndex = ++index;
+            string packetFileName = string.Concat(FileNameXml, schet.YEAR + Initialization.PACKET_MTR_NUM_START, schet.MONTH, schet.Id);
+
+            var task = Task.Run(async () =>
             {
-                Console.WriteLine($"{1 + index} MTR Пакет \"{schet.FILENAME}\" " +
-                                    $"из {schets?.Count()} добавлен в поток. ожидайте завершения...");
+                Console.WriteLine($"{captureIndex} MTR Пакет \"{schet.FILENAME}\" " +
+                                  $"из {schets_count} добавлен в поток. Ожидайте завершения...");
 
-                CookingMtr.Run(schet, string.Concat(FileNameXml, schet.YEAR + Initialization.PACKET_MTR_NUM_START, schet.MONTH, schet.Id));
+                await Task.Run(() => CookingMtr.Run(schet, packetFileName)).ConfigureAwait(false);
 
-                //message
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($" MTR Пакет \"{schet.FILENAME}\" готов. осталось {--schets_count}");
+                Console.WriteLine($" MTR Пакет \"{schet.FILENAME}\" готов. Осталось {Interlocked.Decrement(ref schets_count)}");
                 Console.ResetColor();
             });
-            tasks[task_counter].Start();
+
+            tasks.Add(task);
 
             if (Init.THREAD_ONE)
-                tasks[task_counter].Wait();
-
-            task_counter++;
+                await task.ConfigureAwait(false);
         }
 
         if (!Init.THREAD_ONE)
-            Task.WaitAll(tasks);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 }

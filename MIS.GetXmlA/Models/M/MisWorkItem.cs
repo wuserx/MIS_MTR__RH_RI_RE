@@ -1,0 +1,1 @@
+﻿public record MisWorkItem(Schet Schet, string FileName);
