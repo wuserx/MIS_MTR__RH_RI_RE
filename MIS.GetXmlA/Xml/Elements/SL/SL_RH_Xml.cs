@@ -47,7 +47,7 @@ public class SL_RH_Xml
                 SL.Add(new XElement("DET", 0));
 
         if (_sluch.P_CEL != null)
-            SL.Add(new XElement("P_CEL", _sluch.P_CEL));
+            SL.Add(new XElement("P_CEL", Init.YEAR_REPORT == 2025 && new HashSet<int>() { 9, 10 }.Contains( Init.MONTH_REPORT) ? "1.9" : _sluch.P_CEL ));
         else if (_sluch.P_CEL == null && (zakSluch.FILENAME != null ? Char.ToUpper(zakSluch.FILENAME[0]) : 'X') == 'D')
             SL.Add(new XElement("P_CEL", "2.2"));
         if (_sluch.DISP != null)

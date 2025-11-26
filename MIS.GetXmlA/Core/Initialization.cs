@@ -30,12 +30,8 @@ namespace MIS_MTR_RH_RI_RE.GetXmlA.Core
         public static int PACKET_MTR_NUM_START = 0;
         public static int PACKET_MIS_NUM_START = 0;
 
-        public static bool THREAD_ONE;
-
         public static void Get()
         {
-            THREAD_ONE = int.TryParse(RepositorySettings.GetSection("THREAD_ONE"), out int value) && value == 1;
-
             TYPE_OUT_XML_RH = int.Parse(RepositorySettings.GetSection("TYPE_OUT_XML_RH"));
             TYPE_OUT_XML_RHE = int.Parse(RepositorySettings.GetSection("TYPE_OUT_XML_RHE"));
             TYPE_OUT_XML_RI = int.Parse(RepositorySettings.GetSection("TYPE_OUT_XML_RI"));

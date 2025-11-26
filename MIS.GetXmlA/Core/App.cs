@@ -178,55 +178,7 @@ public class App
                 Console.ResetColor();
             }
         }
-    }
-
-
-    private async Task DoMisAsync(IEnumerable<Schet> schets, string FileNameXml)
-    {
-        int schets_count = schets.Count();
-        if (schets_count <= 0)
-        {
-            // message
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($" MIS счета не найдены");
-            Console.ResetColor();
-            return;
-        }
-
-        //массив потоков
-        var tasks = new List<Task>();
-        int index = 0;
-
-        // перебираем пакеты
-        foreach (var schet in schets)
-        {
-            if (schet.Id <= 0) continue;
-
-            int captureIndex = ++index;
-            string packetFileName = string.Concat(FileNameXml, schet.YEAR_REPORT + Initialization.PACKET_MIS_NUM_START, schet.MONTH_REPORT, schet.Id);
-
-
-            var task = Task.Run(async () =>
-            {
-                Console.WriteLine($"{captureIndex} MIS Пакет \"{schet.FILENAME}\" " +
-                                  $"из {schets_count} добавлен в поток. Ожидайте завершения...");
-
-                await Task.Run(() => CookingMis.Run(schet, packetFileName)).ConfigureAwait(false);
-
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($" MIS Пакет \"{schet.FILENAME}\" готов. Осталось {Interlocked.Decrement(ref schets_count)}");
-                Console.ResetColor();
-            });
-
-            tasks.Add(task);
-
-            if (Init.THREAD_ONE)
-                await task.ConfigureAwait(false);
-        }
-
-        if (!Init.THREAD_ONE)
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-    }
+    }    
 
     private static async Task ConsumeMtrAsync()
     {
@@ -253,50 +205,5 @@ public class App
                 Console.ResetColor();
             }
         }
-    }
-
-
-    private async Task DoMtrAsync(IEnumerable<Schet_mtr> schets, string FileNameXml)
-    {
-        int schets_count = schets.Count();
-        if (schets_count <= 0)
-        {
-            // message
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($" MTR счета не найдены");
-            Console.ResetColor();
-            return;
-        }
-
-        var tasks = new List<Task>();
-        int index = 0;
-
-        foreach (var schet in schets)
-        {
-            if (schet.Id <= 0) continue;
-
-            int captureIndex = ++index;
-            string packetFileName = string.Concat(FileNameXml, schet.YEAR + Initialization.PACKET_MTR_NUM_START, schet.MONTH, schet.Id);
-
-            var task = Task.Run(async () =>
-            {
-                Console.WriteLine($"{captureIndex} MTR Пакет \"{schet.FILENAME}\" " +
-                                  $"из {schets_count} добавлен в поток. Ожидайте завершения...");
-
-                await Task.Run(() => CookingMtr.Run(schet, packetFileName)).ConfigureAwait(false);
-
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($" MTR Пакет \"{schet.FILENAME}\" готов. Осталось {Interlocked.Decrement(ref schets_count)}");
-                Console.ResetColor();
-            });
-
-            tasks.Add(task);
-
-            if (Init.THREAD_ONE)
-                await task.ConfigureAwait(false);
-        }
-
-        if (!Init.THREAD_ONE)
-            await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 }
