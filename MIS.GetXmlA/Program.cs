@@ -4,6 +4,8 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 try
 {
+    Console.OutputEncoding = System.Text.Encoding.UTF8; // 🟢 Включаем UTF-8
+
     Console.Title = string.Concat("MIS-MTR (RH_RI_RE) ", System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
     
     Init.Get();

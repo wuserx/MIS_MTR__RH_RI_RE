@@ -2,6 +2,7 @@
 using MIS_MTR_RH_RI_RE.GetXmlA.Models.I;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading.Channels;
 
@@ -50,7 +51,7 @@ public class App
 
             string fileNameXml = $"RD07_{currentYear - 2000:D2}{currentMonth:D2}";
 
-            Console.WriteLine("\n период: {0}-{1:D2} {2}", currentYear, currentMonth, fileNameXml);
+            Console.WriteLine("\n📊 период: {0}-{1:D2} {2}", currentYear, currentMonth, fileNameXml);
 
             Init.YEAR_REPORT = currentYear;
             Init.MONTH_REPORT = currentMonth;
@@ -72,9 +73,7 @@ public class App
         Stats.Print();
 
         //message
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"\nПрограмма выполнена успешно");
-        Console.ResetColor();
+        MessageHelper.Print("Программа выполнена успешно", ConsoleColor.Green);
     }
 
     private static Task[] StartConsumers()
@@ -157,25 +156,27 @@ public class App
     {
         await foreach (var workItem in _misChannel.Reader.ReadAllAsync())
         {
+            var stopwatch = Stopwatch.StartNew(); // ⏱️ Старт таймера
+
             try
             {
                 Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
 
                 await Task.Run(() => CookingMis.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
 
+                stopwatch.Stop();
+                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds); // Сохраняем время
                 Stats.SuccessMis();  // ✅ Успешно обработан
 
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" готов.");
-                Console.ResetColor();
+                MessageHelper.Print($"✅ MIS Пакет \"{workItem.Schet.FILENAME}\" готов. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.DarkGreen);
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
+                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds);
                 Stats.ErrorMis();  // ✅ Ошибка
 
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка при обработке MIS пакета {workItem.Schet.Id}: {ex.Message}");
-                Console.ResetColor();
+                MessageHelper.Print($"❌ Ошибка при обработке MIS пакета {workItem.Schet.Id}: {ex.Message}. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.Red);
             }
         }
     }    
@@ -184,26 +185,28 @@ public class App
     {
         await foreach (var workItem in _mtrChannel.Reader.ReadAllAsync())
         {
+            var stopwatch = Stopwatch.StartNew(); // ⏱️ Старт таймера
+
             try
             {
                 Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
 
                 await Task.Run(() => CookingMtr.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
 
+                stopwatch.Stop();
+                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds); // Сохраняем время
                 Stats.SuccessMtr();  // ✅ Успешно обработан
 
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" готов.");
-                Console.ResetColor();
+                MessageHelper.Print($"✅ MTR Пакет \"{workItem.Schet.FILENAME}\" готов. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.DarkGreen);
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
+                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds);
                 Stats.ErrorMtr();  // ✅ Ошибка
 
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Ошибка при обработке MTR пакета {workItem.Schet.Id}: {ex.Message}");
-                Console.ResetColor();
-            }
+                MessageHelper.Print($"❌ Ошибка при обработке MTR пакета {workItem.Schet.Id}: {ex.Message}. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.Red);
+           }
         }
     }
 }

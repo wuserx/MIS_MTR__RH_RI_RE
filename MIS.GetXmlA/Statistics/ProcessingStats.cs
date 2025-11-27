@@ -8,7 +8,8 @@
     private long _mtrProcessed;
     private long _mtrErrors;
 
-    // Открытые свойства — только для чтения
+    private long _totalProcessingTimeMs;  // Общее время обработки в миллисекундах
+
     public long MisSubmitted => Volatile.Read(ref _misSubmitted);
     public long MisProcessed => Volatile.Read(ref _misProcessed);
     public long MisErrors => Volatile.Read(ref _misErrors);
@@ -17,7 +18,12 @@
     public long MtrProcessed => Volatile.Read(ref _mtrProcessed);
     public long MtrErrors => Volatile.Read(ref _mtrErrors);
 
-    // Методы инкремента — потокобезопасные
+    public double AverageProcessingTimeMs => (MisProcessed + MtrProcessed) == 0
+        ? 0
+        : _totalProcessingTimeMs / (double)(MisProcessed + MtrProcessed);
+
+    public string AverageProcessingTimeFormatted => TimeSpan.FromMilliseconds(AverageProcessingTimeMs).ToString(@"ss\.ff") + " сек";
+
     public void SubmitMis() => Interlocked.Increment(ref _misSubmitted);
     public void SuccessMis() => Interlocked.Increment(ref _misProcessed);
     public void ErrorMis() => Interlocked.Increment(ref _misErrors);
@@ -26,15 +32,19 @@
     public void SuccessMtr() => Interlocked.Increment(ref _mtrProcessed);
     public void ErrorMtr() => Interlocked.Increment(ref _mtrErrors);
 
+    public void AddProcessingTime(long elapsedMilliseconds)
+        => Interlocked.Add(ref _totalProcessingTimeMs, elapsedMilliseconds);
+
     public void Print()
     {
         Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("ИТОГОВАЯ СТАТИСТИКА ОБРАБОТКИ:");
+        Console.WriteLine("📊 ИТОГОВАЯ СТАТИСТИКА ОБРАБОТКИ:");
         Console.WriteLine("----------------------------------------");
         Console.WriteLine($"MIS: отправлено — {MisSubmitted}, обработано — {MisProcessed}, ошибок — {MisErrors}");
         Console.WriteLine($"MTR: отправлено — {MtrSubmitted}, обработано — {MtrProcessed}, ошибок — {MtrErrors}");
         Console.WriteLine($"Общее: {MisProcessed + MtrProcessed} пакетов успешно обработано.");
+        Console.WriteLine($"⏱️  Среднее время обработки: {AverageProcessingTimeFormatted}");
         Console.ResetColor();
     }
 }
