@@ -65,32 +65,51 @@
 
     public void UpdateProgress()
     {
-        if (!Console.IsOutputRedirected)
-        {
-            // Сохраняем текущую строку, чтобы перезаписать её
-            var currentTop = Console.CursorTop;
-            var currentLeft = Console.CursorLeft;
+        // Если вывод перенаправлен (например, в файл) — не показываем
+        if (Console.IsOutputRedirected) return;
 
-            // Перемещаемся в начало строки (или резервируем строку ниже)
-            Console.SetCursorPosition(0, Console.CursorTop);
+        try
+        {
+            // Фиксируем строку прогресс-бара — всегда строка 0
+            int barTop = 0;
+
+            // Сохраняем текущую позицию, чтобы вернуться
+            int currentLeft = Console.CursorLeft;
+            int currentTop = Console.CursorTop;
+
+            // Обновляем прогресс-бар на первой строке
+            Console.SetCursorPosition(0, barTop);
+
+            int width = Console.WindowWidth - 1; // Защита от исключений
 
             string progressBar = new string('█', Percentage / 2) + new string('░', 50 - Percentage / 2);
+            if (progressBar.Length > 50) progressBar = progressBar.Substring(0, 50);
 
-            string message = $"Обработка: [{progressBar}] {TotalProcessed + TotalErrors}/{_totalExpected} ({Percentage}%) | " +
-                             $"MIS: {MisProcessed + MisErrors} | " +
-                             $"MTR: {MtrProcessed + MtrErrors} | " +
-                             $"Ошибки: {TotalErrors}";
+            string message = $"📌 Прогресс: [{progressBar}] {TotalProcessed + TotalErrors}/{_totalExpected} ({Percentage}%) | " +
+                             $"MIS: {MisProcessed + MisErrors} | MTR: {MtrProcessed + MtrErrors} | Ошибки: {TotalErrors}";
 
-            // Обрезаем, если длиннее ширины консоли
-            if (message.Length >= Console.WindowWidth)
-                message = message.Substring(0, Console.WindowWidth - 1);
+            // Обрезаем под ширину
+            if (message.Length > width) message = message.Substring(0, width);
 
-            Console.Write(message.PadRight(Console.WindowWidth - 1)); // Очищаем остаток строки
+            Console.Write(message.PadRight(width));
 
-            // Возвращаем курсор на следующую строку
-            Console.SetCursorPosition(currentLeft, currentTop + 1);
+            // Возвращаем курсор на предыдущее место (для логов)
+            if (currentTop >= 1) // не возвращаемся на строку прогресса
+                Console.SetCursorPosition(
+                    Math.Min(currentLeft, Console.WindowWidth - 1),
+                    Math.Min(currentTop, Console.WindowHeight - 1)
+                );
+        }
+        catch (IOException)
+        {
+            // Консоль может быть временно недоступна
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // Размеры консоли изменились — игнорируем
         }
     }
+
 
     public void Print()
     {

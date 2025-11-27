@@ -28,6 +28,9 @@ public class App
 
     public static async Task RunAsync()
     {
+        // Очищаем консоль и фиксируем строку 0
+        Console.Clear();
+
         // Запускаем обработчиков (фоновые задачи)
         var consumers = StartConsumers();
 
@@ -81,6 +84,8 @@ public class App
 
         // Финальный прогресс
         Stats.UpdateProgress();
+        Console.WriteLine(); // Переход на новую строку после завершения
+        Console.WriteLine(); // Отступ
 
         //message
         MessageHelper.Print("Программа выполнена успешно", ConsoleColor.Green);
@@ -217,4 +222,44 @@ public class App
            }
         }
     }
+
+    private static void SafeWriteLine(string message, ConsoleColor? color = null)
+    {
+        if (Console.IsOutputRedirected)
+        {
+            Console.WriteLine(message);
+            return;
+        }
+
+        try
+        {
+            var currentTop = Console.CursorTop;
+            var currentLeft = Console.CursorLeft;
+
+            // Если мы на строке 0 — сдвигаемся на строку 1
+            if (currentTop == 0)
+            {
+                Console.SetCursorPosition(0, 1);
+            }
+
+            if (color.HasValue)
+            {
+                Console.ForegroundColor = color.Value;
+                Console.WriteLine(message);
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.WriteLine(message);
+            }
+
+            // Всё ещё не возвращаемся на строку 0 — пусть прогресс-бар остаётся отдельно
+        }
+        catch
+        {
+            // Игнорируем ошибки вывода
+            Console.WriteLine(message); // fallback
+        }
+    }
+
 }
