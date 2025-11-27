@@ -14,6 +14,7 @@ public class App
     // Количество одновременных обработчиков
     private static int CONSUMER_COUNT = int.TryParse(RepositorySettings.GetSection("CONSUMER_COUNT"), out var parsed) ? parsed : 4;
     private static readonly ProcessingStats Stats = new ProcessingStats();
+    private static long _totalSubmitted; // Общее число отправленных пакетов
 
     public App()
     {
@@ -62,6 +63,12 @@ public class App
         // 🔥 Ждём, пока ВСЕ ExecuteAsync завершат запись в каналы
         await Task.WhenAll(executeTasks);
 
+        // ✅ Устанавливаем общее количество
+        Stats.SetTotalExpected(_totalSubmitted);
+
+        // Выводим начальный прогресс
+        Stats.UpdateProgress();
+
         // ✅ Только теперь — закрываем каналы
         _misChannel.Writer.Complete();
         _mtrChannel.Writer.Complete();
@@ -71,6 +78,9 @@ public class App
 
         // ✅ Вывод статистики
         Stats.Print();
+
+        // Финальный прогресс
+        Stats.UpdateProgress();
 
         //message
         MessageHelper.Print("Программа выполнена успешно", ConsoleColor.Green);
@@ -111,6 +121,7 @@ public class App
                     await _misChannel.Writer.WriteAsync(new MisWorkItem(schet, packetFileName));
 
                     Stats.SubmitMis();  // ✅ Счётчик отправленных
+                    Interlocked.Increment(ref _totalSubmitted);
                 }
             }
             else if (Init.TYPE_OUT_XML_RH == 1 || Init.TYPE_OUT_XML_RHE == 1)
@@ -139,6 +150,7 @@ public class App
                     await _mtrChannel.Writer.WriteAsync(new MtrWorkItem(schet, packetFileName));
 
                     Stats.SubmitMtr();  // ✅ Счётчик отправленных
+                    Interlocked.Increment(ref _totalSubmitted);
                 }
             }
             else if (Init.TYPE_OUT_XML_RI == 1 || Init.TYPE_OUT_XML_RIE == 1)
