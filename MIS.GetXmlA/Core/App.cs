@@ -156,27 +156,25 @@ public class App
     {
         await foreach (var workItem in _misChannel.Reader.ReadAllAsync())
         {
-            var stopwatch = Stopwatch.StartNew(); // ⏱️ Старт таймера
-
             try
             {
-                Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
+                // Замер времени + автоматическая передача в статистику
+                using (var tracker = StopwatchTracker.StartNew(Stats.AddProcessingTime))
+                {
+                    Console.WriteLine($"MIS Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
 
-                await Task.Run(() => CookingMis.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
+                    await Task.Run(() => CookingMis.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
 
-                stopwatch.Stop();
-                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds); // Сохраняем время
-                Stats.SuccessMis();  // ✅ Успешно обработан
+                    Stats.SuccessMis();  // ✅ Успешно обработан
 
-                MessageHelper.Print($"✅ MIS Пакет \"{workItem.Schet.FILENAME}\" готов. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.DarkGreen);
+                    MessageHelper.Print($"✅ MIS Пакет \"{workItem.Schet.FILENAME}\" готов. Время: {tracker._stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.DarkGreen);
+                }                    
             }
             catch (Exception ex)
             {
-                stopwatch.Stop();
-                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds);
                 Stats.ErrorMis();  // ✅ Ошибка
 
-                MessageHelper.Print($"❌ Ошибка при обработке MIS пакета {workItem.Schet.Id}: {ex.Message}. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.Red);
+                MessageHelper.Print($"❌ Ошибка при обработке MIS пакета {workItem.Schet.Id}: {ex.Message}.", ConsoleColor.Red);
             }
         }
     }    
@@ -185,27 +183,25 @@ public class App
     {
         await foreach (var workItem in _mtrChannel.Reader.ReadAllAsync())
         {
-            var stopwatch = Stopwatch.StartNew(); // ⏱️ Старт таймера
-
             try
             {
-                Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
+                // Замер времени + автоматическая передача в статистику
+                using (var tracker = StopwatchTracker.StartNew(Stats.AddProcessingTime))
+                {
+                    Console.WriteLine($"MTR Пакет \"{workItem.Schet.FILENAME}\" начал обработку...");
 
-                await Task.Run(() => CookingMtr.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
+                    await Task.Run(() => CookingMtr.Run(workItem.Schet, workItem.FileName)).ConfigureAwait(false);
 
-                stopwatch.Stop();
-                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds); // Сохраняем время
-                Stats.SuccessMtr();  // ✅ Успешно обработан
+                    Stats.SuccessMtr();  // ✅ Успешно обработан
 
-                MessageHelper.Print($"✅ MTR Пакет \"{workItem.Schet.FILENAME}\" готов. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.DarkGreen);
+                    MessageHelper.Print($"✅ MTR Пакет \"{workItem.Schet.FILENAME}\" готов. Время: {tracker._stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.DarkGreen);
+                }                    
             }
             catch (Exception ex)
             {
-                stopwatch.Stop();
-                Stats.AddProcessingTime(stopwatch.ElapsedMilliseconds);
                 Stats.ErrorMtr();  // ✅ Ошибка
 
-                MessageHelper.Print($"❌ Ошибка при обработке MTR пакета {workItem.Schet.Id}: {ex.Message}. Время: {stopwatch.Elapsed:hh\\:mm\\:ss\\.ff}", ConsoleColor.Red);
+                MessageHelper.Print($"❌ Ошибка при обработке MTR пакета {workItem.Schet.Id}: {ex.Message}.", ConsoleColor.Red);
            }
         }
     }
